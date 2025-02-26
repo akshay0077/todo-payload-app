@@ -1,35 +1,39 @@
-import { dirname } from 'path'
-import { fileURLToPath } from 'url'
+import js from '@eslint/js'
 import { FlatCompat } from '@eslint/eslintrc'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import tsParser from '@typescript-eslint/parser'
 
 const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+const __dirname = path.dirname(__filename)
 
 const compat = new FlatCompat({
   baseDirectory: __dirname,
 })
 
-const eslintConfig = [
-  ...compat.extends('next/core-web-vitals', 'next/typescript'),
+export default [
+  js.configs.recommended,
+  ...compat.extends(
+    'plugin:@typescript-eslint/recommended',
+    'next/core-web-vitals',
+    'prettier'
+  ),
   {
+    files: ['**/*.{js,jsx,ts,tsx}'],
+    ignores: ['node_modules/**', 'dist/**', 'build/**', '*.min.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      parser: tsParser, // Use the imported parser object
+      parserOptions: {
+        ecmaFeatures: { jsx: true },
+      },
+    },
     rules: {
-      '@typescript-eslint/ban-ts-comment': 'warn',
-      '@typescript-eslint/no-empty-object-type': 'warn',
+      'no-unused-vars': 'warn',
+      '@typescript-eslint/no-unused-vars': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': [
-        'warn',
-        {
-          vars: 'all',
-          args: 'after-used',
-          ignoreRestSiblings: false,
-          argsIgnorePattern: '^_',
-          varsIgnorePattern: '^_',
-          destructuredArrayIgnorePattern: '^_',
-          caughtErrorsIgnorePattern: '^(_|ignore)',
-        },
-      ],
+      '@typescript-eslint/ban-ts-comment': 'warn',
     },
   },
 ]
-
-export default eslintConfig

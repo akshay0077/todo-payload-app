@@ -1,31 +1,38 @@
 {
-  "name": "",
+  "name": "todo-app",
   "version": "1.0.0",
   "description": "A blank template to get started with Payload 3.0",
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build": "cross-env NODE_OPTIONS=--no-deprecation next build",
-    "dev": "cross-env NODE_OPTIONS=--no-deprecation next dev",
-    "devsafe": "rm -rf .next && cross-env NODE_OPTIONS=--no-deprecation next dev",
-    "generate:importmap": "cross-env NODE_OPTIONS=--no-deprecation payload generate:importmap",
-    "generate:types": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",
-    "lint": "cross-env NODE_OPTIONS=--no-deprecation next lint",
-    "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
-    "start": "cross-env NODE_OPTIONS=--no-deprecation next start"
+    "build": "cross-env  next build",
+    "dev": "cross-env  next dev",
+    "devsafe": "rm -rf .next && cross-env  next dev",
+    "generate:importmap": "cross-env  payload generate:importmap",
+    "generate:types": "cross-env  payload generate:types",
+    "lint": "cross-env next lint",
+    "lint:fix": "cross-env next lint --fix",
+    "format": "prettier --write '**/*.{js,jsx,ts,tsx,json,css,md}'",
+    "payload": "cross-env  payload",
+    "start": "cross-env  next start",
+    "prepare": "husky",
+    "lint-staged": "lint-staged"
   },
   "dependencies": {
+    "@payloadcms/db-postgres": "latest",
     "@payloadcms/next": "latest",
     "@payloadcms/payload-cloud": "latest",
     "@payloadcms/richtext-lexical": "latest",
+    "@typescript-eslint/eslint-plugin": "^8.25.0",
+    "@typescript-eslint/parser": "^8.25.0",
     "cross-env": "^7.0.3",
+    "eslint-config-prettier": "^10.0.1",
     "graphql": "^16.8.1",
     "next": "15.1.5",
     "payload": "latest",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "sharp": "0.32.6",
-    "@payloadcms/db-postgres": "latest"
+    "sharp": "0.32.6"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -34,6 +41,8 @@
     "@types/react-dom": "19.0.3",
     "eslint": "^9.16.0",
     "eslint-config-next": "15.1.5",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
     "prettier": "^3.4.2",
     "typescript": "5.7.3"
   },
@@ -44,6 +53,17 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "sharp"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "next lint --fix --file",
+      "prettier --write"
     ]
   }
 }
