@@ -1,5 +1,5 @@
 import React from 'react'
-import './styles.css'
+import '../../../src/app/globals.css'
 
 export const metadata = {
   description: 'A blank template using Payload in a Next.js app.',
