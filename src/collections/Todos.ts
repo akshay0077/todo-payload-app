@@ -8,7 +8,11 @@ export const Todos: CollectionConfig = {
   access: {
     read: ({ req: { user } }) => {
       if (!user) return false
-      return { user: user.id }
+      return {
+        user: {
+          equals: user.id,
+        },
+      }
     },
   },
   fields: [
