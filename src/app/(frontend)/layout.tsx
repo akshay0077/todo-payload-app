@@ -5,6 +5,7 @@ import '../../../src/app/globals.css'
 import { usePathname } from 'next/navigation'
 import Navbar from '../(frontend)/components/Navbar'
 import { AuthProvider } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 
 export default function RootLayout({
   children,
@@ -17,10 +18,12 @@ export default function RootLayout({
 
   return (
     <html lang="en">
-      <body>
+      <body className="min-h-screen flex flex-col bg-[#0B1120] text-white transition-colors duration-300">
         <AuthProvider>
-          {showNavbar && <Navbar />}
-          <main>{children}</main>
+          <ThemeProvider>
+            {showNavbar && <Navbar />}
+            <main className="flex-1 flex flex-col">{children}</main>
+          </ThemeProvider>
         </AuthProvider>
       </body>
     </html>
