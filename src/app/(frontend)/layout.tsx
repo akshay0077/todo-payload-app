@@ -1,18 +1,27 @@
+'use client'
+
 import React from 'react'
 import '../../../src/app/globals.css'
+import { usePathname } from 'next/navigation'
+import Navbar from '../(frontend)/components/Navbar'
+import { AuthProvider } from './context/AuthContext'
 
-export const metadata = {
-  description: 'A blank template using Payload in a Next.js app.',
-  title: 'Payload Blank Template',
-}
-
-export default async function RootLayout(props: { children: React.ReactNode }) {
-  const { children } = props
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const pathname = usePathname()
+  // Only show navbar on todos page
+  const showNavbar = pathname === '/todos'
 
   return (
     <html lang="en">
       <body>
-        <main>{children}</main>
+        <AuthProvider>
+          {showNavbar && <Navbar />}
+          <main>{children}</main>
+        </AuthProvider>
       </body>
     </html>
   )
