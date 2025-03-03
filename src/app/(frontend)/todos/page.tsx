@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
+import withAuth from '../components/withAuth'
+import { useAuth } from '../context/AuthContext'
 
 interface Todo {
   id: string
@@ -21,7 +23,12 @@ interface Category {
   name: string
 }
 
-export default function Todos() {
+interface TimeLeft {
+  text: string
+  color: string
+}
+
+function TodosPage() {
   const [todos, setTodos] = useState<Todo[]>([])
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -34,122 +41,136 @@ export default function Todos() {
   const [filterStatus, setFilterStatus] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const router = useRouter()
+  const { user } = useAuth()
 
   useEffect(() => {
-    checkAuth()
+    // Since we're using the AuthContext, we can directly fetch todos and categories
+    Promise.all([fetchTodos(), fetchCategories()])
+      .then(() => setIsLoading(false))
+      .catch((error: Error) => {
+        console.error('Error fetching data:', error)
+        setAuthError('Error fetching data')
+      })
   }, [])
 
-  const checkAuth = async () => {
+  const fetchTodos = async (): Promise<void> => {
     try {
-      const res = await fetch('/api/users/me', {
-        method: 'GET',
+      const res = await fetch('/api/todos?depth=1', {
         credentials: 'include',
       })
       const data = await res.json()
+      setTodos(data.docs || [])
+    } catch (error) {
+      console.error('Error fetching todos:', error)
+      throw error
+    }
+  }
 
-      if (!res.ok) {
-        setAuthError('Authentication failed')
-        router.push('/')
-      } else {
-        await Promise.all([fetchTodos(), fetchCategories()])
-        setIsLoading(false)
+  const fetchCategories = async (): Promise<void> => {
+    try {
+      const res = await fetch('/api/categories', {
+        credentials: 'include',
+      })
+      const data = await res.json()
+      setCategories(data.docs || [])
+    } catch (error) {
+      console.error('Error fetching categories:', error)
+      throw error
+    }
+  }
+
+  const createTodo = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault()
+    try {
+      const res = await fetch('/api/todos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title,
+          description,
+          dueDate: dueDate || undefined,
+          category: categoryId || undefined,
+        }),
+        credentials: 'include',
+      })
+
+      if (res.ok) {
+        setTitle('')
+        setDescription('')
+        setDueDate('')
+        setCategoryId('')
+        setShowForm(false)
+        await fetchTodos()
       }
     } catch (error) {
-      console.error('Error checking auth:', error)
-      setAuthError('Something went wrong')
-      router.push('/')
+      console.error('Error creating todo:', error)
     }
   }
 
-  const fetchTodos = async () => {
-    const res = await fetch('/api/todos?depth=1', {
-      credentials: 'include',
-    })
-    const data = await res.json()
-    setTodos(data.docs || [])
-  }
-
-  const fetchCategories = async () => {
-    const res = await fetch('/api/categories', {
-      credentials: 'include',
-    })
-    const data = await res.json()
-    setCategories(data.docs || [])
-  }
-
-  const createTodo = async (e) => {
-    e.preventDefault()
-    const res = await fetch('/api/todos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: title || undefined,
-        description: description || undefined,
-        dueDate: dueDate || undefined,
-        category: Number(categoryId) || undefined,
-      }),
-      credentials: 'include',
-    })
-    if (res.ok) {
-      setTitle('')
-      setDescription('')
-      setDueDate('')
-      setCategoryId('')
-      setShowForm(false)
-      fetchTodos()
-    } else {
-      console.error('Failed to create todo:', res)
+  const toggleTodo = async (id: string, completed: boolean): Promise<void> => {
+    try {
+      await fetch(`/api/todos/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ completed }),
+        credentials: 'include',
+      })
+      await fetchTodos()
+    } catch (error) {
+      console.error('Error toggling todo:', error)
     }
   }
 
-  const toggleTodo = async (id: string, completed: boolean) => {
-    await fetch(`/api/todos/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ completed: !completed }),
-      credentials: 'include',
-    })
-    fetchTodos()
+  const deleteTodo = async (id: string): Promise<void> => {
+    try {
+      await fetch(`/api/todos/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      await fetchTodos()
+    } catch (error) {
+      console.error('Error deleting todo:', error)
+    }
   }
 
-  const deleteTodo = async (id: string) => {
-    await fetch(`/api/todos/${id}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    })
-    fetchTodos()
-  }
-
-  const filteredTodos = todos.filter((todo) => {
-    const matchesStatus =
-      filterStatus === 'all' ||
-      (filterStatus === 'active' && !todo.completed) ||
-      (filterStatus === 'completed' && todo.completed)
-
-    const matchesSearch =
-      todo.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (todo.description &&
-        todo.description.toLowerCase().includes(searchQuery.toLowerCase()))
-
-    return matchesStatus && matchesSearch
-  })
-
-  const getTimeLeft = (dueDateStr) => {
+  const getTimeLeft = (dueDateStr: string): TimeLeft | null => {
     if (!dueDateStr) return null
 
     const dueDate = new Date(dueDateStr)
     const today = new Date()
 
-    const diffDays = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24))
+    // Convert to milliseconds and then to days
+    const diffTime = dueDate.getTime() - today.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
     if (diffDays < 0) return { text: 'Overdue', color: 'text-red-500' }
     if (diffDays === 0) return { text: 'Due today', color: 'text-yellow-500' }
     if (diffDays === 1)
       return { text: 'Due tomorrow', color: 'text-yellow-400' }
-    if (diffDays < 3)
-      return { text: `Due in ${diffDays} days`, color: 'text-yellow-300' }
-    return { text: `Due in ${diffDays} days`, color: 'text-green-400' }
+    if (diffDays < 7)
+      return { text: `Due in ${diffDays} days`, color: 'text-green-400' }
+    return { text: `Due in ${diffDays} days`, color: 'text-green-500' }
   }
+
+  // Filter todos based on status and search query
+  const filteredTodos = todos
+    .filter((todo) => {
+      if (filterStatus === 'all') return true
+      if (filterStatus === 'completed') return todo.completed
+      return !todo.completed
+    })
+    .filter((todo) => {
+      if (!searchQuery) return true
+      return (
+        todo.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (todo.description &&
+          todo.description.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    })
 
   if (isLoading) {
     return (
@@ -528,3 +549,5 @@ export default function Todos() {
     </div>
   )
 }
+
+export default withAuth(TodosPage)
