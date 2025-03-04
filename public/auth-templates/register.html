@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Register - Todo App</title>
+    <link rel="stylesheet" href="register.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="form-container">
+        <h1>Create Your Account</h1>
+        <p class="subtitle">Get started with your todo workspace</p>
+
+        <form id="registrationForm" class="registration-form">
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              required
+              placeholder="john@example.com"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              required
+              placeholder="••••••••"
+            />
+            <small class="hint"
+              >At least 8 characters with numbers and letters</small
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="confirmPassword">Confirm Password</label>
+            <input
+              type="password"
+              id="confirmPassword"
+              name="confirmPassword"
+              required
+              placeholder="••••••••"
+            />
+          </div>
+
+          <button type="submit" class="submit-btn">Create Account</button>
+        </form>
+
+        <div class="form-footer">
+          <p>Already have an account? <a href="login.html">Log in</a></p>
+        </div>
+
+        <div id="errorMessage" class="error-message"></div>
+      </div>
+    </div>
+    <script src="register.js"></script>
+  </body>
+</html>

@@ -70,6 +70,7 @@ export interface Config {
     media: Media;
     todos: Todo;
     categories: Category;
+    tenants: Tenant;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -80,6 +81,7 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     todos: TodosSelect<false> | TodosSelect<true>;
     categories: CategoriesSelect<false> | CategoriesSelect<true>;
+    tenants: TenantsSelect<false> | TenantsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -127,6 +129,10 @@ export interface UserAuthOperations {
 export interface User {
   id: number;
   name?: string | null;
+  /**
+   * The tenant this user belongs to
+   */
+  tenant?: (number | null) | Tenant;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -137,6 +143,28 @@ export interface User {
   loginAttempts?: number | null;
   lockUntil?: string | null;
   password?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenants".
+ */
+export interface Tenant {
+  id: number;
+  name: string;
+  /**
+   * This will be used as the subdomain for the tenant (e.g., tenant-name.todoapp.com)
+   */
+  slug: string;
+  /**
+   * The user who owns this tenant
+   */
+  owner: number | User;
+  /**
+   * Use this to enable/disable tenant access
+   */
+  isActive?: boolean | null;
+  createdAt: string;
+  updatedAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -165,10 +193,21 @@ export interface Todo {
   id: number;
   title: string;
   description?: string | null;
-  completed?: boolean | null;
+  status: 'todo' | 'in-progress' | 'done';
+  priority?: ('high' | 'medium' | 'low') | null;
   dueDate?: string | null;
-  user: number | User;
-  category?: (number | null) | Category;
+  /**
+   * The user assigned to this todo
+   */
+  assignedTo?: (number | null) | User;
+  /**
+   * The tenant this todo belongs to
+   */
+  tenant: number | Tenant;
+  /**
+   * The user who created this todo
+   */
+  createdBy?: (number | null) | User;
   updatedAt: string;
   createdAt: string;
 }
@@ -205,6 +244,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'categories';
         value: number | Category;
+      } | null)
+    | ({
+        relationTo: 'tenants';
+        value: number | Tenant;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -254,6 +297,7 @@ export interface PayloadMigration {
  */
 export interface UsersSelect<T extends boolean = true> {
   name?: T;
+  tenant?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -289,10 +333,12 @@ export interface MediaSelect<T extends boolean = true> {
 export interface TodosSelect<T extends boolean = true> {
   title?: T;
   description?: T;
-  completed?: T;
+  status?: T;
+  priority?: T;
   dueDate?: T;
-  user?: T;
-  category?: T;
+  assignedTo?: T;
+  tenant?: T;
+  createdBy?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -305,6 +351,18 @@ export interface CategoriesSelect<T extends boolean = true> {
   user?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenants_select".
+ */
+export interface TenantsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  owner?: T;
+  isActive?: T;
+  createdAt?: T;
+  updatedAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

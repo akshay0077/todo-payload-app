@@ -11,12 +11,12 @@ import { Media } from './collections/Media'
 import { Todos } from './collections/Todos'
 import { Categories } from './collections/Categories'
 import { Settings } from './globals/Settings'
+import { Tenants } from './collections/Tenants'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
 const { slug } = Users
-const { resolve } = path
 const { PAYLOAD_SECRET, DATABASE_URI } = process.env
 
 if (!PAYLOAD_SECRET) {
@@ -28,18 +28,24 @@ if (!DATABASE_URI) {
 }
 
 export default buildConfig({
+  serverURL: process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3000',
   admin: {
-    user: slug,
+    user: Users.slug,
+    meta: {
+      titleSuffix: '- Todo App',
+      favicon: '/favicon.ico',
+      ogImage: '/thumbnail.jpg',
+    },
     importMap: {
-      baseDir: resolve(dirname),
+      baseDir: dirname,
     },
   },
-  collections: [Users, Media, Todos, Categories],
+  collections: [Users, Media, Todos, Categories, Tenants],
   globals: [Settings],
   editor: lexicalEditor(),
   secret: PAYLOAD_SECRET,
   typescript: {
-    outputFile: resolve(dirname, 'payload-types.ts'),
+    outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
   db: postgresAdapter({
     pool: {
@@ -48,4 +54,17 @@ export default buildConfig({
   }),
   sharp,
   plugins: [],
+  graphQL: {
+    schemaOutputFile: path.resolve(dirname, 'generated-schema.graphql'),
+  },
+  cors: [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'https://todoapp.com',
+  ].filter(Boolean),
+  csrf: [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'https://todoapp.com',
+  ].filter(Boolean),
 })
