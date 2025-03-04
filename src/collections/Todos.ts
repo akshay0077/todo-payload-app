@@ -1,19 +1,11 @@
-import type { CollectionConfig } from 'payload'
+import { CollectionConfig } from 'payload'
 
 export const Todos: CollectionConfig = {
   slug: 'todos',
   admin: {
     useAsTitle: 'title',
-  },
-  access: {
-    read: ({ req: { user } }) => {
-      if (!user) return false
-      return {
-        user: {
-          equals: user.id,
-        },
-      }
-    },
+    group: 'Content',
+    defaultColumns: ['title', 'status', 'dueDate', 'assignedTo', 'tenant'],
   },
   fields: [
     {
@@ -26,34 +18,103 @@ export const Todos: CollectionConfig = {
       type: 'textarea',
     },
     {
-      name: 'completed',
-      type: 'checkbox',
-      defaultValue: false,
+      name: 'status',
+      type: 'select',
+      required: true,
+      defaultValue: 'todo',
+      options: [
+        {
+          label: 'To Do',
+          value: 'todo',
+        },
+        {
+          label: 'In Progress',
+          value: 'in-progress',
+        },
+        {
+          label: 'Done',
+          value: 'done',
+        },
+      ],
+    },
+    {
+      name: 'priority',
+      type: 'select',
+      defaultValue: 'medium',
+      options: [
+        {
+          label: 'High',
+          value: 'high',
+        },
+        {
+          label: 'Medium',
+          value: 'medium',
+        },
+        {
+          label: 'Low',
+          value: 'low',
+        },
+      ],
     },
     {
       name: 'dueDate',
       type: 'date',
     },
     {
-      name: 'user',
+      name: 'assignedTo',
       type: 'relationship',
       relationTo: 'users',
-      required: true,
+      hasMany: false,
+      admin: {
+        description: 'The user assigned to this todo',
+      },
     },
     {
-      name: 'category',
+      name: 'tenant',
       type: 'relationship',
-      relationTo: 'categories',
+      relationTo: 'tenants',
+      required: true,
+      hasMany: false,
+      admin: {
+        position: 'sidebar',
+        description: 'The tenant this todo belongs to',
+      },
+    },
+    {
+      name: 'createdBy',
+      type: 'relationship',
+      relationTo: 'users',
+      hasMany: false,
+      admin: {
+        readOnly: true,
+        position: 'sidebar',
+        description: 'The user who created this todo',
+      },
     },
   ],
   hooks: {
     beforeChange: [
-      ({ req, data }) => {
+      // Set the tenant and creator automatically
+      async ({ req, data }) => {
         if (req.user) {
-          data.user = req.user.id
+          // Set tenant from logged in user
+          if (!data.tenant) {
+            data.tenant = req.user.tenant
+          }
+
+          // Set creator on creation
+          if (!data.createdBy) {
+            data.createdBy = req.user.id
+          }
+
+          // If no assignee, assign to creator
+          if (!data.assignedTo) {
+            data.assignedTo = req.user.id
+          }
         }
         return data
       },
     ],
   },
+  timestamps: true,
 }

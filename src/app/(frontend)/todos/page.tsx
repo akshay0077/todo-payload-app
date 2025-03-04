@@ -2,21 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import withAuth from '../components/withAuth'
 import { useAuth } from '../context/AuthContext'
-
-interface Todo {
-  id: string
-  title: string
-  description?: string
-  completed: boolean
-  dueDate?: string
-  category?: { id: string; name: string }
-  user: { id: string; name: string; email: string }
-  createdAt: string
-  updatedAt: string
-}
+import { TodoCard } from '../components/TodoCard'
+import { TodoDetailModal } from '../components/TodoDetailModal'
+import { Todo } from '../types/todo'
 
 interface Category {
   id: string
@@ -32,6 +23,8 @@ function TodosPage() {
   const [todos, setTodos] = useState<Todo[]>([])
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [status, setStatus] = useState<Todo['status']>('todo')
+  const [priority, setPriority] = useState<Todo['priority']>('medium')
   const [dueDate, setDueDate] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [categories, setCategories] = useState<Category[]>([])
@@ -45,8 +38,7 @@ function TodosPage() {
   const { user } = useAuth()
 
   useEffect(() => {
-    // Since we're using the AuthContext, we can directly fetch todos and categories
-    Promise.all([fetchTodos(), fetchCategories()])
+    fetchTodos()
       .then(() => setIsLoading(false))
       .catch((error: Error) => {
         console.error('Error fetching data:', error)
@@ -59,6 +51,7 @@ function TodosPage() {
       const res = await fetch('/api/todos?depth=1', {
         credentials: 'include',
       })
+      if (!res.ok) throw new Error('Failed to fetch todos')
       const data = await res.json()
       setTodos(data.docs || [])
     } catch (error) {
@@ -91,8 +84,10 @@ function TodosPage() {
         body: JSON.stringify({
           title,
           description,
+          status,
+          priority,
           dueDate: dueDate || undefined,
-          category: Number(categoryId) || undefined,
+          tenant: user?.tenant,
         }),
         credentials: 'include',
       })
@@ -100,38 +95,48 @@ function TodosPage() {
       if (res.ok) {
         setTitle('')
         setDescription('')
+        setStatus('todo')
+        setPriority('medium')
         setDueDate('')
-        setCategoryId('')
         setShowForm(false)
         await fetchTodos()
+      } else {
+        const error = await res.json()
+        console.error('Error creating todo:', error)
+        throw new Error(error.errors?.[0]?.message || 'Failed to create todo')
       }
     } catch (error) {
       console.error('Error creating todo:', error)
     }
   }
 
-  const toggleTodo = async (id: string, completed: boolean): Promise<void> => {
+  const updateTodoStatus = async (
+    id: string,
+    newStatus: Todo['status']
+  ): Promise<void> => {
     try {
-      await fetch(`/api/todos/${id}`, {
+      const res = await fetch(`/api/todos/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ completed }),
+        body: JSON.stringify({ status: newStatus }),
         credentials: 'include',
       })
+      if (!res.ok) throw new Error('Failed to update todo')
       await fetchTodos()
     } catch (error) {
-      console.error('Error toggling todo:', error)
+      console.error('Error updating todo:', error)
     }
   }
 
   const deleteTodo = async (id: string): Promise<void> => {
     try {
-      await fetch(`/api/todos/${id}`, {
+      const res = await fetch(`/api/todos/${id}`, {
         method: 'DELETE',
         credentials: 'include',
       })
+      if (!res.ok) throw new Error('Failed to delete todo')
       await fetchTodos()
     } catch (error) {
       console.error('Error deleting todo:', error)
@@ -143,8 +148,6 @@ function TodosPage() {
 
     const dueDate = new Date(dueDateStr)
     const today = new Date()
-
-    // Convert to milliseconds and then to days
     const diffTime = dueDate.getTime() - today.getTime()
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
@@ -157,12 +160,37 @@ function TodosPage() {
     return { text: `Due in ${diffDays} days`, color: 'text-green-500' }
   }
 
+  const getPriorityColor = (priority: Todo['priority']): string => {
+    switch (priority) {
+      case 'high':
+        return 'text-red-400'
+      case 'medium':
+        return 'text-yellow-400'
+      case 'low':
+        return 'text-green-400'
+      default:
+        return 'text-gray-400'
+    }
+  }
+
+  const getStatusColor = (status: Todo['status']): string => {
+    switch (status) {
+      case 'todo':
+        return 'bg-gray-600'
+      case 'in-progress':
+        return 'bg-yellow-600'
+      case 'done':
+        return 'bg-green-600'
+      default:
+        return 'bg-gray-600'
+    }
+  }
+
   // Filter todos based on status and search query
   const filteredTodos = todos
     .filter((todo) => {
       if (filterStatus === 'all') return true
-      if (filterStatus === 'completed') return todo.completed
-      return !todo.completed
+      return todo.status === filterStatus
     })
     .filter((todo) => {
       if (!searchQuery) return true
@@ -172,6 +200,22 @@ function TodosPage() {
           todo.description.toLowerCase().includes(searchQuery.toLowerCase()))
       )
     })
+
+  // Group todos by status
+  const todosByStatus = todos.reduce(
+    (acc, todo) => {
+      if (
+        !searchQuery ||
+        todo.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (todo.description &&
+          todo.description.toLowerCase().includes(searchQuery.toLowerCase()))
+      ) {
+        acc[todo.status].push(todo)
+      }
+      return acc
+    },
+    { todo: [], 'in-progress': [], done: [] } as Record<Todo['status'], Todo[]>
+  )
 
   if (isLoading) {
     return (
@@ -204,506 +248,230 @@ function TodosPage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-[#0B1120]">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="flex-1 flex flex-col items-center py-6"
-      >
-        <div className="w-full max-w-3xl flex flex-col min-h-[calc(100vh-80px)]">
-          <div className="flex justify-between items-center mb-6 px-6">
-            <h1 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-500">
-              My Tasks
+    <div className="flex-1 flex flex-col bg-[#0B1120] min-h-screen">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-500">
+              Task Board
             </h1>
+            <p className="text-gray-400 mt-1">Manage your tasks efficiently</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search tasks..."
+              className="px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white w-64"
+            />
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowForm(!showForm)}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md font-medium shadow-lg transition-colors duration-200"
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-medium shadow-lg transition-colors duration-200 flex items-center gap-2"
             >
-              {showForm ? 'Cancel' : '+ New Task'}
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              New Task
             </motion.button>
           </div>
+        </div>
 
-          <div className="px-6">
-            <AnimatePresence>
-              {showForm && (
-                <motion.form
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.3 }}
-                  onSubmit={createTodo}
-                  className="mb-6 overflow-hidden space-y-4 bg-gray-800/20 p-5 rounded-xl border border-gray-700/50"
-                >
+        {/* Create Todo Form */}
+        <AnimatePresence>
+          {showForm && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="mb-8"
+            >
+              <form
+                onSubmit={createTodo}
+                className="bg-gray-800/30 rounded-xl border border-gray-700/50 p-6 shadow-xl"
+              >
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Task Title
+                  </label>
+                  <input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="What needs to be done?"
+                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Add more details..."
+                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white h-24 resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Task Title
+                      Status
+                    </label>
+                    <select
+                      value={status}
+                      onChange={(e) =>
+                        setStatus(e.target.value as Todo['status'])
+                      }
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white"
+                    >
+                      <option value="todo">To Do</option>
+                      <option value="in-progress">In Progress</option>
+                      <option value="done">Done</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Priority
+                    </label>
+                    <select
+                      value={priority}
+                      onChange={(e) =>
+                        setPriority(e.target.value as Todo['priority'])
+                      }
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Due Date
                     </label>
                     <input
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="What needs to be done?"
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
                       className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white"
-                      required
                     />
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Description (Optional)
-                    </label>
-                    <textarea
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Add more details about this task..."
-                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white h-24"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1">
-                        Due Date (Optional)
-                      </label>
-                      <input
-                        type="date"
-                        value={dueDate}
-                        onChange={(e) => setDueDate(e.target.value)}
-                        className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1">
-                        Category (Optional)
-                      </label>
-                      <select
-                        value={categoryId}
-                        onChange={(e) => setCategoryId(e.target.value)}
-                        className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white"
-                      >
-                        <option value="">Select a category</option>
-                        {categories.map((cat) => (
-                          <option key={cat.id} value={cat.id}>
-                            {cat.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
+                <div className="flex justify-end">
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     type="submit"
-                    className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-md font-medium hover:from-indigo-600 hover:to-purple-700 transition duration-200 shadow-lg"
+                    className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md font-medium shadow-lg transition-colors duration-200"
                   >
-                    Add Task
+                    Create Task
                   </motion.button>
-                </motion.form>
-              )}
-            </AnimatePresence>
-
-            <div className="mb-6 space-y-4">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="relative w-full md:w-64">
-                  <input
-                    type="text"
-                    placeholder="Search tasks..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-gray-800/20 border border-gray-700/50 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white"
-                  />
-                  <svg
-                    className="w-5 h-5 text-gray-400 absolute left-3 top-2.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
                 </div>
+              </form>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-                <div className="flex bg-gray-800/20 rounded-md">
-                  <button
-                    onClick={() => setFilterStatus('all')}
-                    className={`px-4 py-2 rounded-l-md transition-colors ${
-                      filterStatus === 'all'
-                        ? 'bg-indigo-600 text-white'
-                        : 'text-gray-300 hover:bg-gray-700/50'
-                    }`}
-                  >
-                    All
-                  </button>
-                  <button
-                    onClick={() => setFilterStatus('active')}
-                    className={`px-4 py-2 transition-colors ${
-                      filterStatus === 'active'
-                        ? 'bg-indigo-600 text-white'
-                        : 'text-gray-300 hover:bg-gray-700/50'
-                    }`}
-                  >
-                    Active
-                  </button>
-                  <button
-                    onClick={() => setFilterStatus('completed')}
-                    className={`px-4 py-2 rounded-r-md transition-colors ${
-                      filterStatus === 'completed'
-                        ? 'bg-indigo-600 text-white'
-                        : 'text-gray-300 hover:bg-gray-700/50'
-                    }`}
-                  >
-                    Completed
-                  </button>
-                </div>
-              </div>
+        {/* Kanban Board */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* To Do Column */}
+          <div className="bg-gray-800/20 rounded-xl border border-gray-700/50 p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+              <h2 className="text-lg font-semibold text-gray-300">To Do</h2>
+              <span className="ml-auto bg-gray-700 px-2 py-1 rounded-full text-sm text-gray-300">
+                {todosByStatus.todo.length}
+              </span>
             </div>
+            <div className="space-y-3">
+              {todosByStatus.todo.map((todo) => (
+                <TodoCard
+                  key={todo.id}
+                  todo={todo}
+                  onStatusChange={updateTodoStatus}
+                  onDelete={deleteTodo}
+                  onClick={setSelectedTodo}
+                />
+              ))}
+            </div>
+          </div>
 
-            <div className="bg-gray-800/20 rounded-xl border border-gray-700/50">
-              <div
-                className="overflow-y-auto space-y-2 p-4"
-                style={{ maxHeight: 'calc(100vh - 280px)', minHeight: '300px' }}
-              >
-                <AnimatePresence>
-                  {filteredTodos.length === 0 ? (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="flex flex-col items-center justify-center h-[300px]"
-                    >
-                      <svg
-                        className="w-16 h-16 text-gray-600 mb-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={1.5}
-                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                        />
-                      </svg>
-                      <p className="text-gray-400 text-center">
-                        {searchQuery
-                          ? 'No tasks match your search'
-                          : filterStatus === 'completed'
-                            ? 'No completed tasks found'
-                            : filterStatus === 'active'
-                              ? 'No active tasks found'
-                              : 'No tasks yet. Create your first task!'}
-                      </p>
-                      {!showForm && (
-                        <button
-                          onClick={() => setShowForm(true)}
-                          className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md text-white text-sm transition-colors"
-                        >
-                          Create Task
-                        </button>
-                      )}
-                    </motion.div>
-                  ) : (
-                    filteredTodos.map((todo) => {
-                      const timeLeft = todo.dueDate
-                        ? getTimeLeft(todo.dueDate)
-                        : null
+          {/* In Progress Column */}
+          <div className="bg-gray-800/20 rounded-xl border border-gray-700/50 p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+              <h2 className="text-lg font-semibold text-gray-300">
+                In Progress
+              </h2>
+              <span className="ml-auto bg-gray-700 px-2 py-1 rounded-full text-sm text-gray-300">
+                {todosByStatus['in-progress'].length}
+              </span>
+            </div>
+            <div className="space-y-3">
+              {todosByStatus['in-progress'].map((todo) => (
+                <TodoCard
+                  key={todo.id}
+                  todo={todo}
+                  onStatusChange={updateTodoStatus}
+                  onDelete={deleteTodo}
+                  onClick={setSelectedTodo}
+                />
+              ))}
+            </div>
+          </div>
 
-                      return (
-                        <motion.div
-                          key={todo.id}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, height: 0 }}
-                          whileHover={{ scale: 1.01 }}
-                          onClick={() => setSelectedTodo(todo)}
-                          className={`p-4 rounded-lg border transition-all duration-200 cursor-pointer ${
-                            todo.completed
-                              ? 'bg-gray-800/10 border-gray-700/30'
-                              : 'bg-gray-800/20 border-gray-700/50'
-                          }`}
-                        >
-                          <div className="flex items-start space-x-3">
-                            <div onClick={(e) => e.stopPropagation()}>
-                              <label className="cursor-pointer relative inline-flex items-center">
-                                <input
-                                  type="checkbox"
-                                  checked={todo.completed}
-                                  onChange={() =>
-                                    toggleTodo(todo.id, !todo.completed)
-                                  }
-                                  className="sr-only peer"
-                                />
-                                <div className="w-5 h-5 border-2 border-gray-500 rounded-full peer-checked:bg-indigo-500 peer-checked:border-indigo-500 transition-colors"></div>
-                                <div className="absolute w-2 h-2 left-1.5 top-1.5 rounded-full bg-indigo-300 scale-0 peer-checked:scale-100 transition-transform"></div>
-                              </label>
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-2 md:space-y-0">
-                                <h3
-                                  className={`font-medium ${
-                                    todo.completed
-                                      ? 'line-through text-gray-500'
-                                      : 'text-white'
-                                  }`}
-                                >
-                                  {todo.title}
-                                </h3>
-                                {timeLeft && !todo.completed && (
-                                  <span
-                                    className={`text-xs font-medium px-2.5 py-0.5 rounded-full bg-gray-800 ${timeLeft.color}`}
-                                  >
-                                    {timeLeft.text}
-                                  </span>
-                                )}
-                              </div>
-
-                              {todo.description && (
-                                <p
-                                  className={`mt-1 text-sm ${
-                                    todo.completed
-                                      ? 'text-gray-600'
-                                      : 'text-gray-400'
-                                  }`}
-                                >
-                                  {todo.description}
-                                </p>
-                              )}
-
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {todo.category && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-900/60 text-purple-300 border border-purple-800">
-                                    {todo.category.name}
-                                  </span>
-                                )}
-                                {todo.dueDate && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-700/60 text-gray-300">
-                                    <svg
-                                      className="mr-1 w-3 h-3"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      viewBox="0 0 24 24"
-                                      xmlns="http://www.w3.org/2000/svg"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                                      />
-                                    </svg>
-                                    {new Date(
-                                      todo.dueDate
-                                    ).toLocaleDateString()}
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className="mt-2 flex justify-between items-center text-xs text-gray-500">
-                                <span>
-                                  Created:{' '}
-                                  {new Date(todo.createdAt).toLocaleString()}
-                                </span>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    deleteTodo(todo.id)
-                                    setSelectedTodo(null)
-                                  }}
-                                  className="text-gray-500 hover:text-red-400 transition-colors"
-                                >
-                                  <svg
-                                    className="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                    />
-                                  </svg>
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </motion.div>
-                      )
-                    })
-                  )}
-                </AnimatePresence>
-              </div>
-
-              <div className="border-t border-gray-700/50 px-4 py-3 text-xs text-gray-400 text-center">
-                <p>
-                  {filterStatus === 'all'
-                    ? `Showing all tasks (${filteredTodos.length})`
-                    : filterStatus === 'active'
-                      ? `Showing active tasks (${filteredTodos.length})`
-                      : `Showing completed tasks (${filteredTodos.length})`}
-                  {' | '}
-                  Total: {todos.length} | Active:{' '}
-                  {todos.filter((t) => !t.completed).length} | Completed:{' '}
-                  {todos.filter((t) => t.completed).length}
-                </p>
-              </div>
+          {/* Done Column */}
+          <div className="bg-gray-800/20 rounded-xl border border-gray-700/50 p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <h2 className="text-lg font-semibold text-gray-300">Done</h2>
+              <span className="ml-auto bg-gray-700 px-2 py-1 rounded-full text-sm text-gray-300">
+                {todosByStatus.done.length}
+              </span>
+            </div>
+            <div className="space-y-3">
+              {todosByStatus.done.map((todo) => (
+                <TodoCard
+                  key={todo.id}
+                  todo={todo}
+                  onStatusChange={updateTodoStatus}
+                  onDelete={deleteTodo}
+                  onClick={setSelectedTodo}
+                />
+              ))}
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* Todo Detail Modal */}
       <AnimatePresence>
         {selectedTodo && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black z-40"
-              onClick={() => setSelectedTodo(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              transition={{ type: 'spring', duration: 0.5 }}
-              className="fixed inset-x-4 top-[10%] md:inset-x-auto md:left-1/2 md:right-auto md:w-[600px] md:-ml-[300px] bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl shadow-2xl border border-gray-700 p-6 z-50 max-h-[80vh] overflow-y-auto"
-            >
-              <div className="relative">
-                <button
-                  onClick={() => setSelectedTodo(null)}
-                  className="absolute right-0 top-0 text-gray-400 hover:text-white transition-colors"
-                >
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
-
-                <div className="mb-6">
-                  <div className="flex items-center space-x-4 mb-4">
-                    <label
-                      className="cursor-pointer relative inline-flex items-center"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedTodo.completed}
-                        onChange={() => {
-                          toggleTodo(selectedTodo.id, !selectedTodo.completed)
-                          setSelectedTodo({
-                            ...selectedTodo,
-                            completed: !selectedTodo.completed,
-                          })
-                        }}
-                        className="sr-only peer"
-                      />
-                      <div className="w-6 h-6 border-2 border-gray-500 rounded-full peer-checked:bg-indigo-500 peer-checked:border-indigo-500 transition-colors"></div>
-                      <div className="absolute w-2.5 h-2.5 left-1.75 top-1.75 rounded-full bg-indigo-300 scale-0 peer-checked:scale-100 transition-transform"></div>
-                    </label>
-                    <h2
-                      className={`text-2xl font-bold ${selectedTodo.completed ? 'line-through text-gray-500' : 'text-white'}`}
-                    >
-                      {selectedTodo.title}
-                    </h2>
-                  </div>
-
-                  {selectedTodo.description && (
-                    <div className="bg-black/20 rounded-lg p-4 mb-4">
-                      <p
-                        className={`text-lg ${selectedTodo.completed ? 'text-gray-500' : 'text-gray-300'}`}
-                      >
-                        {selectedTodo.description}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {selectedTodo.category && (
-                      <div className="bg-purple-900/20 rounded-lg p-4 border border-purple-800/30">
-                        <h3 className="text-purple-300 text-sm font-medium mb-1">
-                          Category
-                        </h3>
-                        <p className="text-white text-lg">
-                          {selectedTodo.category.name}
-                        </p>
-                      </div>
-                    )}
-
-                    {selectedTodo.dueDate && (
-                      <div className="bg-indigo-900/20 rounded-lg p-4 border border-indigo-800/30">
-                        <h3 className="text-indigo-300 text-sm font-medium mb-1">
-                          Due Date
-                        </h3>
-                        <p className="text-white text-lg">
-                          {new Date(selectedTodo.dueDate).toLocaleDateString()}
-                        </p>
-                        {getTimeLeft(selectedTodo.dueDate) && (
-                          <span
-                            className={`inline-block mt-2 px-3 py-1 rounded-full text-sm font-medium ${getTimeLeft(selectedTodo.dueDate)?.color}`}
-                          >
-                            {getTimeLeft(selectedTodo.dueDate)?.text}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-6 pt-6 border-t border-gray-700">
-                    <div className="flex justify-between items-center text-sm text-gray-400">
-                      <span>
-                        Created:{' '}
-                        {new Date(selectedTodo.createdAt).toLocaleString()}
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          deleteTodo(selectedTodo.id)
-                          setSelectedTodo(null)
-                        }}
-                        className="flex items-center space-x-1 text-red-400 hover:text-red-300 transition-colors"
-                      >
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                        <span>Delete Task</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </>
+          <TodoDetailModal
+            todo={selectedTodo}
+            onClose={() => setSelectedTodo(null)}
+            onStatusChange={updateTodoStatus}
+            onDelete={deleteTodo}
+          />
         )}
       </AnimatePresence>
     </div>
