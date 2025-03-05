@@ -1,5 +1,4 @@
-import { CollectionConfig } from 'payload/types'
-import { Access, FieldAccess } from 'payload/types'
+import { CollectionConfig } from 'payload'
 
 // Helper function to get tenant ID safely
 const getTenantId = (user: any): string | null => {

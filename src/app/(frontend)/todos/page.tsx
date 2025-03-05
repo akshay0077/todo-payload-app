@@ -58,6 +58,7 @@ function TodosPage() {
         throw new Error('No tenant associated with user')
       }
 
+      //@ts-ignores
       const tenantId = user.tenant.id || user.tenant
 
       const res = await fetch('/api/todos', {

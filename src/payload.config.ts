@@ -33,8 +33,6 @@ export default buildConfig({
     user: Users.slug,
     meta: {
       titleSuffix: '- Todo App',
-      favicon: '/favicon.ico',
-      ogImage: '/thumbnail.jpg',
     },
     importMap: {
       baseDir: dirname,
