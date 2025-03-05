@@ -2,12 +2,24 @@
  * Authentication utility functions
  */
 
+interface User {
+  id: string
+  name: string
+  email: string
+  tenant?:
+    | string
+    | {
+        id: string
+      }
+  roles?: string[]
+}
+
 /**
  * Response from authentication check
  */
 interface AuthCheckResponse {
   isAuthenticated: boolean
-  user?: any
+  user?: User
   error?: string
 }
 
@@ -41,7 +53,14 @@ export const checkAuthentication = async (): Promise<AuthCheckResponse> => {
     }
 
     const data = await res.json()
-    return { isAuthenticated: true, user: data.user }
+
+    // Ensure tenant data is properly structured
+    const user = data.user
+    if (user && typeof user.tenant === 'string') {
+      user.tenant = { id: user.tenant }
+    }
+
+    return { isAuthenticated: true, user }
   } catch (error) {
     console.error('Error checking authentication:', error)
     return {

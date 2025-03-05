@@ -17,9 +17,12 @@ interface User {
   id: string
   name: string
   email: string
-  tenant?: {
-    id: string
-  }
+  tenant?:
+    | string
+    | {
+        id: string
+      }
+  roles?: string[]
 }
 
 /**
@@ -66,6 +69,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { isAuthenticated, user, error } = await checkAuthentication()
 
       if (isAuthenticated && user) {
+        // Ensure tenant data is properly structured
+        if (user.tenant && typeof user.tenant === 'string') {
+          user.tenant = { id: user.tenant }
+        }
+
         setUser(user)
         setIsAuthenticated(true)
         setError(null)
