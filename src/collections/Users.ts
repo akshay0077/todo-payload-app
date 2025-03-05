@@ -41,16 +41,17 @@ const createTenant = async (payload, userId, userName, userEmail) => {
 
     console.log('Tenant created:', tenant)
 
-    // Update user with tenant reference
+    // Update user with tenant reference and default role
     const updatedUser = await payload.update({
       collection: 'users',
       id: userId,
       data: {
         tenant: tenant.id,
+        roles: ['user'], // Set default role as user
       },
     })
 
-    console.log('User updated with tenant:', updatedUser)
+    console.log('User updated with tenant and role:', updatedUser)
     return { tenant, updatedUser }
   } catch (error) {
     console.error('Error in createTenant:', error)
@@ -69,17 +70,68 @@ export const Users: CollectionConfig = {
   admin: {
     useAsTitle: 'email',
     group: 'Admin',
+    defaultColumns: ['email', 'name', 'roles', 'tenant'],
   },
   access: {
-    read: () => true,
-    create: () => true,
-    update: () => true,
-    delete: () => true,
+    // Only admins can read all users
+    read: ({ req: { user } }) => {
+      if (!user) return false
+      if (user.roles?.includes('admin')) return true
+      // Users can read their own record
+      return {
+        id: {
+          equals: user.id,
+        },
+      }
+    },
+    create: () => true, // Allow registration
+    // Users can only update their own record, admins can update any
+    update: ({ req: { user } }) => {
+      if (!user) return false
+      if (user.roles?.includes('admin')) return true
+      return {
+        id: {
+          equals: user.id,
+        },
+      }
+    },
+    // Only admins can delete users
+    delete: ({ req: { user } }) => {
+      if (!user) return false
+      return user.roles?.includes('admin')
+    },
   },
   fields: [
     {
       name: 'name',
       type: 'text',
+    },
+    {
+      name: 'roles',
+      type: 'select',
+      hasMany: true,
+      defaultValue: ['user'],
+      options: [
+        {
+          label: 'Admin',
+          value: 'admin',
+        },
+        {
+          label: 'User',
+          value: 'user',
+        },
+      ],
+      access: {
+        // Only admins can update roles
+        update: ({ req: { user } }) => {
+          if (!user) return false
+          return user.roles?.includes('admin')
+        },
+      },
+      admin: {
+        description: 'User roles determine access levels',
+        position: 'sidebar',
+      },
     },
     {
       name: 'tenant',
@@ -89,6 +141,13 @@ export const Users: CollectionConfig = {
       admin: {
         description: 'The tenant this user belongs to',
         position: 'sidebar',
+      },
+      access: {
+        // Only admins can update tenant
+        update: ({ req: { user } }) => {
+          if (!user) return false
+          return user.roles?.includes('admin')
+        },
       },
     },
   ],
@@ -174,6 +233,10 @@ export const Users: CollectionConfig = {
         if (!data.name && data.email) {
           data.name = data.email.split('@')[0]
         }
+        // Ensure new users get the default 'user' role
+        if (!data.roles) {
+          data.roles = ['user']
+        }
         return data
       },
     ],
@@ -199,7 +262,6 @@ export const Users: CollectionConfig = {
             id: doc.id,
           })
 
-          // Instead of using setTimeout, create tenant immediately
           const result = await createTenant(
             req.payload,
             doc.id,

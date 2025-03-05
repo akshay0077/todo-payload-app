@@ -2,22 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence, Reorder } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import withAuth from '../components/withAuth'
 import { useAuth } from '../context/AuthContext'
 import { TodoCard } from '../components/TodoCard'
 import { TodoDetailModal } from '../components/TodoDetailModal'
 import { Todo } from '../types/todo'
-
-interface Category {
-  id: string
-  name: string
-}
-
-interface TimeLeft {
-  text: string
-  color: string
-}
 
 function TodosPage() {
   const [todos, setTodos] = useState<Todo[]>([])
@@ -26,25 +16,26 @@ function TodosPage() {
   const [status, setStatus] = useState<Todo['status']>('todo')
   const [priority, setPriority] = useState<Todo['priority']>('medium')
   const [dueDate, setDueDate] = useState('')
-  const [categoryId, setCategoryId] = useState('')
-  const [categories, setCategories] = useState<Category[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [authError, setAuthError] = useState('')
   const [showForm, setShowForm] = useState(false)
-  const [filterStatus, setFilterStatus] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null)
   const router = useRouter()
   const { user } = useAuth()
 
   useEffect(() => {
-    fetchTodos()
-      .then(() => setIsLoading(false))
-      .catch((error: Error) => {
-        console.error('Error fetching data:', error)
-        setAuthError('Error fetching data')
-      })
-  }, [])
+    if (user?.tenant) {
+      fetchTodos()
+        .then(() => setIsLoading(false))
+        .catch((error: Error) => {
+          console.error('Error fetching data:', error)
+          setAuthError('Error fetching data')
+        })
+    } else {
+      setIsLoading(false)
+    }
+  }, [user?.tenant])
 
   const fetchTodos = async (): Promise<void> => {
     try {
@@ -60,22 +51,15 @@ function TodosPage() {
     }
   }
 
-  const fetchCategories = async (): Promise<void> => {
-    try {
-      const res = await fetch('/api/categories', {
-        credentials: 'include',
-      })
-      const data = await res.json()
-      setCategories(data.docs || [])
-    } catch (error) {
-      console.error('Error fetching categories:', error)
-      throw error
-    }
-  }
-
   const createTodo = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
     try {
+      if (!user?.tenant) {
+        throw new Error('No tenant associated with user')
+      }
+
+      const tenantId = user.tenant.id || user.tenant
+
       const res = await fetch('/api/todos', {
         method: 'POST',
         headers: {
@@ -87,7 +71,7 @@ function TodosPage() {
           status,
           priority,
           dueDate: dueDate || undefined,
-          tenant: user?.tenant,
+          tenant: tenantId,
         }),
         credentials: 'include',
       })
@@ -107,6 +91,9 @@ function TodosPage() {
       }
     } catch (error) {
       console.error('Error creating todo:', error)
+      setAuthError(
+        error instanceof Error ? error.message : 'Failed to create todo'
+      )
     }
   }
 
@@ -142,64 +129,6 @@ function TodosPage() {
       console.error('Error deleting todo:', error)
     }
   }
-
-  const getTimeLeft = (dueDateStr: string): TimeLeft | null => {
-    if (!dueDateStr) return null
-
-    const dueDate = new Date(dueDateStr)
-    const today = new Date()
-    const diffTime = dueDate.getTime() - today.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-    if (diffDays < 0) return { text: 'Overdue', color: 'text-red-500' }
-    if (diffDays === 0) return { text: 'Due today', color: 'text-yellow-500' }
-    if (diffDays === 1)
-      return { text: 'Due tomorrow', color: 'text-yellow-400' }
-    if (diffDays < 7)
-      return { text: `Due in ${diffDays} days`, color: 'text-green-400' }
-    return { text: `Due in ${diffDays} days`, color: 'text-green-500' }
-  }
-
-  const getPriorityColor = (priority: Todo['priority']): string => {
-    switch (priority) {
-      case 'high':
-        return 'text-red-400'
-      case 'medium':
-        return 'text-yellow-400'
-      case 'low':
-        return 'text-green-400'
-      default:
-        return 'text-gray-400'
-    }
-  }
-
-  const getStatusColor = (status: Todo['status']): string => {
-    switch (status) {
-      case 'todo':
-        return 'bg-gray-600'
-      case 'in-progress':
-        return 'bg-yellow-600'
-      case 'done':
-        return 'bg-green-600'
-      default:
-        return 'bg-gray-600'
-    }
-  }
-
-  // Filter todos based on status and search query
-  const filteredTodos = todos
-    .filter((todo) => {
-      if (filterStatus === 'all') return true
-      return todo.status === filterStatus
-    })
-    .filter((todo) => {
-      if (!searchQuery) return true
-      return (
-        todo.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (todo.description &&
-          todo.description.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
-    })
 
   // Group todos by status
   const todosByStatus = todos.reduce(

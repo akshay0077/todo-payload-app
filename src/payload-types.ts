@@ -130,6 +130,10 @@ export interface User {
   id: number;
   name?: string | null;
   /**
+   * User roles determine access levels
+   */
+  roles?: ('admin' | 'user')[] | null;
+  /**
    * The tenant this user belongs to
    */
   tenant?: (number | null) | Tenant;
@@ -297,6 +301,7 @@ export interface PayloadMigration {
  */
 export interface UsersSelect<T extends boolean = true> {
   name?: T;
+  roles?: T;
   tenant?: T;
   updatedAt?: T;
   createdAt?: T;
