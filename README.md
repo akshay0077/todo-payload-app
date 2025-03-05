@@ -6,48 +6,48 @@ A modern, secure, and scalable multi-tenant todo application built with Next.js,
 
 ### Multi-Tenancy 🏢
 
-Automatic tenant creation upon user registration
-Complete data isolation between tenants
-Tenant-specific task management
+- Automatic tenant creation upon user registration
+- Complete data isolation between tenants
+- Tenant-specific task management
 
 ### User Management 👤
 
-Role-based access control (User, Admin)
-Secure authentication with token-based sessions
-Rate limiting for login attempts
-User profile management
+- Role-based access control (User, Admin)
+- Secure authentication with token-based sessions
+- Rate limiting for login attempts
+- User profile management
 
 ### Todo Management 📋
 
-Create, read, update, and delete todos
-Task prioritization (High, Medium, Low)
-Task status tracking (Todo, In Progress, Done)
-Task assignment to team members
-Due date management
-Detailed task descriptions
+- Create, read, update, and delete todos
+- Task prioritization (High, Medium, Low)
+- Task status tracking (Todo, In Progress, Done)
+- Task assignment to team members
+- Due date management
+- Detailed task descriptions
 
 ### Security Features 🔒
 
-JWT-based authentication
-Rate limiting for API endpoints
-Secure password handling
-CORS and CSRF protection
-Environment-based configuration
+- JWT-based authentication
+- Rate limiting for API endpoints
+- Secure password handling
+- CORS and CSRF protection
+- Environment-based configuration
 
 ### Tech Stack 💻
 
-Frontend: Next.js 13+ with App Router
-Backend: PayloadCMS
-Database: PostgreSQL
-Authentication: Built-in PayloadCMS auth with JWT
-Type Safety: TypeScript
-Styling: Modern UI with responsive design
+- Frontend: Next.js 13+ with App Router
+- Backend: PayloadCMS
+- Database: PostgreSQL
+- Authentication: Built-in PayloadCMS auth with JWT
+- Type Safety: TypeScript
+- Styling: Modern UI with responsive design
 
 ### Prerequisites 🛠️
 
-Node.js 18+
-PostgreSQL 16+
-npm or yarn
+- Node.js 18+
+- PostgreSQL 16+
+- npm or yarn
 
 ### Environment Variables 🌐
 
@@ -76,7 +76,7 @@ NEXT_PUBLIC_PROD_ADMIN_URL=https://your-domain.com/admin
 
 ```
 git clone https://github.com/akshay0077/todo-payload-app.git
-cd todo-app
+cd todo-payload-app
 ```
 
 2. Install dependencies:
@@ -138,20 +138,57 @@ yarn dev
 
 Here are snapshots of the key interfaces in the Multi-Tenant Todo Application:
 
-1. Onboarding Screen 🖼️
+### 1. Onboarding Screen 🖼️
    This is the initial user registration screen, built with HTML, CSS, and JavaScript, located in public/auth-templates/register.html. It provides a clean, responsive form for users to enter their details and create a new account.
 
-![Logo](https://dev-to-uploads.s3.amazonaws.com/uploads/articles/th5xamgrr6se0x5ro4g6.png)
+## User Onboarding Screen
+![Logo](https://raw.githubusercontent.com/akshay0077/todo-payload-app/refs/heads/main/screenshot/user-onboard-01.png)
 
-2. Website Dashboard 🌐
+
+## Check the authentication in background
+![Logo](https://raw.githubusercontent.com/akshay0077/todo-payload-app/refs/heads/main/screenshot/auth-status-02.png)
+
+
+
+### 2. Website Dashboard 🌐
    The main todo web application, accessible after login at /todos, built with Next.js and PayloadCMS. It displays a user’s tasks, allows task management, and ensures tenant isolation.
 
-![Logo](https://dev-to-uploads.s3.amazonaws.com/uploads/articles/th5xamgrr6se0x5ro4g6.png)
 
-3. PayloadCMS Admin Panel 🛠️
+## Onboarded User Login Screen
+![Logo](https://raw.githubusercontent.com/akshay0077/todo-payload-app/refs/heads/main/screenshot/login-screen-03.png)
+
+## Create the Task
+![Logo](https://raw.githubusercontent.com/akshay0077/todo-payload-app/refs/heads/main/screenshot/create-todo-04.png)
+
+## Task Management Dashboard
+![Logo](https://raw.githubusercontent.com/akshay0077/todo-payload-app/refs/heads/main/screenshot/dashboard-05.png)
+
+## In-details Task Popup
+![Logo](https://raw.githubusercontent.com/akshay0077/todo-payload-app/refs/heads/main/screenshot/specific-todos-06.png)
+
+## Searching Task Functinality Screen
+![Logo](https://raw.githubusercontent.com/akshay0077/todo-payload-app/refs/heads/main/screenshot/Search-todos-07.png)
+
+
+
+###3. PayloadCMS Admin Panel 🛠️
    The admin interface at /admin, powered by PayloadCMS, allows administrators to manage users, todos, and tenant settings securely.
 
-![Logo](https://dev-to-uploads.s3.amazonaws.com/uploads/articles/th5xamgrr6se0x5ro4g6.png)
+## Admin Login Screen
+![Logo](https://raw.githubusercontent.com/akshay0077/todo-payload-app/refs/heads/main/screenshot/Admin-Login-08.png)
+
+## Admin Dashboard
+![Logo](https://raw.githubusercontent.com/akshay0077/todo-payload-app/refs/heads/main/screenshot/Admin-Dashboard-09.png)
+
+## Sepcific User Details
+![Logo](https://raw.githubusercontent.com/akshay0077/todo-payload-app/refs/heads/main/screenshot/user-details-10.png)
+
+## List of Task 
+![Logo](https://raw.githubusercontent.com/akshay0077/todo-payload-app/refs/heads/main/screenshot/list-of-todos-11.png)
+
+## List of Tenant with Specific User or Admin Based
+![Logo](https://raw.githubusercontent.com/akshay0077/todo-payload-app/refs/heads/main/screenshot/list-of-tenant-12.png)
+
 
 ## Contributing 🤝
 
@@ -165,6 +202,6 @@ Here are snapshots of the key interfaces in the Multi-Tenant Todo Application:
 
 This project is licensed under the MIT License.
 
-## Support 🆘
+## Support
 
 For support, please open an issue in the GitHub repository 😊
